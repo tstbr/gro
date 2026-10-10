@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analisador de Riscos Ocupacionais (SST)</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- PDF.js para leitura de PDFs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    
+    <!-- Mammoth.js para leitura de DOCX -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col">
+
+    <header class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 text-white p-2.5 rounded-lg shadow-sm">
+                    <i class="fa-solid fa-shield-halved text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-900 leading-tight">Analisador SST</h1>
+                    <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">PGR • GRO - MPicanço (48) 9 9969 - 6483 <img src="qrmarcelo.jpg" alt="qrmarcelo.jpg" width="60" height="60">
+</p>
+                </div>
+            </div>
+            <div>
+                <label for="file-upload" class="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-semibold transition-all shadow-sm flex items-center gap-2 transform active:scale-95">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <span>Analisar Documento</span>
+                </label>
+                <input type="file" id="file-upload" accept=".pdf, .docx" class="hidden">
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col">
+        
+        <!-- Mensagem de Erro -->
+        <div id="error-alert" class="hidden bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-sm mb-6 flex items-start gap-3">
+            <i class="fa-solid fa-circle-exclamation mt-1"></i>
+            <span id="error-msg" class="font-medium">Ocorreu um erro.</span>
+        </div>
+
+        <!-- Estado Inicial (Vazio) -->
+        <div id="view-initial" class="flex flex-col items-center justify-center flex-1 py-16 text-center bg-white rounded-2xl shadow-sm border border-slate-200 border-dashed">
+            <div class="bg-blue-50 text-blue-500 p-6 rounded-full mb-4">
+                <i class="fa-regular fa-file-pdf text-4xl"></i>
+                <i class="fa-regular fa-file-word text-4xl ml-2"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-slate-800">Nenhum documento carregado</h2>
+            <p class="text-slate-500 mt-2 max-w-md mx-auto">
+                Faça o upload de um arquivo <b>PDF</b> ou <b>DOCX</b>. O sistema informa os riscos identificados no forms preenchido <a href="https://docs.google.com/forms/d/e/1FAIpQLSe4B5GR9y3zmkotb0sNOx2qxn022CHmT6pKTxkjHtzI2Iiulg/viewform">GRO</a>
+
+            </p>
+        </div>
+
+        <!-- Estado de Carregamento -->
+        <div id="view-loading" class="hidden flex-col items-center justify-center flex-1 py-20 text-center">
+            <div class="loader mb-6"></div>
+            <h2 class="text-xl font-bold text-slate-800">Analisando documento...</h2>
+            <p id="loading-status" class="text-slate-500 mt-2 font-medium">Extraindo texto do arquivo</p>
+        </div>
+
+        <!-- Estado de Resultados -->
+        <div id="view-results" class="hidden flex-col gap-6 w-full pb-10">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 gap-3">
+                <h3 class="text-2xl font-bold text-slate-800">Mapeamento de Riscos</h3>
+                <div class="flex items-center gap-2 bg-slate-200 text-slate-700 px-4 py-1.5 rounded-full text-sm font-medium">
+                    <i class="fa-solid fa-file-lines"></i>
+                    <span id="filename-display">documento.pdf</span>
+                </div>
+            </div>
+            
+            <div id="results-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
+                <!-- Cards renderizados via JS -->
+            </div>
+        </div>
+    </main>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        // Elementos DOM
+        const fileInput = document.getElementById('file-upload');
+        const viewInitial = document.getElementById('view-initial');
+        const viewLoading = document.getElementById('view-loading');
+        const viewResults = document.getElementById('view-results');
+        const loadingStatus = document.getElementById('loading-status');
+        const resultsGrid = document.getElementById('results-grid');
+        const errorAlert = document.getElementById('error-alert');
+        const errorMsg = document.getElementById('error-msg');
+        const filenameDisplay = document.getElementById('filename-display');
+
+        // Regex de negação (exatamente como solicitado)
+        const negationTerms = [
+            'nao encontrado', 'nao identificado', 'nao presente', 
+            'nao reconhecido', 'nao aplicado', 'ausente', 'n\/a', 'inexistente'
+        ];
+        const negationRegex = new RegExp(`\\b(${negationTerms.join('|')})\\b`, 'i');
+
+        // Dicionário de Riscos com Regex ajustado para texto sem acento
+        const riskData = [
+            {
+                title: "Riscos Físicos",
+                icon: "fa-temperature-half",
+                headerColor: "bg-blue-600",
+                items: [
+                    { name: "Ruído", regex: /\bruido(s)?\b/gi },
+                    { name: "Vibrações", regex: /\bvibracao\b|\bvibracoes\b/gi },
+                    { name: "Temperaturas extremas", regex: /\btemperaturas? extremas?\b/gi },
+                    { name: "Radiações Ionizantes", regex: /\bradiacoes ionizantes\b|\bradiacao ionizante\b|\braios x\b|\braios gama\b|\bparticulas alfa\b|\bparticulas beta\b/gi },
+                    { name: "Radiações Não ionizantes", regex: /\bradiacoes nao ionizantes\b|\bradiacao nao ionizante\b|\bultravioleta\b|\binfravermelho\b|\blaser\b|\bmicro-ondas\b/gi },
+                    { name: "Pressões anormais", regex: /\bpressoes anormais\b|\bpressao anormal\b|\bhiperbarica\b|\bhipobarica\b/gi },
+                    { name: "Umidade", regex: /\bumidade\b|\blocais excessivamente encharcados\b/gi }
+                ]
+            },
+            {
+                title: "Riscos Químicos",
+                icon: "fa-flask",
+                headerColor: "bg-indigo-600",
+                items: [
+                    { name: "Via Respiratória", regex: /\bvia respiratoria\b|\binalacao( de poeiras)?\b|\bfumos\b|\bnevoas\b|\bneblinas\b|\bgases\b|\bvapores\b/gi },
+                    { name: "Via Cutânea (Pele)", regex: /\bvia cutanea\b|\bcontato direto com a pele\b|\babsorcao pelo( contato)?\b/gi },
+                    { name: "Via Digestiva (Ingestão)", regex: /\bvia digestiva\b|\bingestao\b|\bentrada acidental pela boca\b/gi }
+                ]
+            },
+            {
+                title: "Riscos Biológicos",
+                icon: "fa-bugs",
+                headerColor: "bg-teal-600",
+                items: [
+                    { name: "Vírus", regex: /\bvirus\b|\bhiv\b|\bhepatite( b)?\b|\bfebre amarela\b|\bebola\b|\bcoronavirus\b/gi },
+                    { name: "Bactérias", regex: /\bbacterias?\b|\bmycobacterium\b|\btuberculose\b|\bclostridium\b|\btetano\b|\bbacillus\b|\banthracis\b/gi },
+                    { name: "Fungos", regex: /\bfungos?\b|\bcausadores de micoses\b|\bcandidiase\b/gi },
+                    { name: "Protozoários e Parasitas", regex: /\bprotozoarios\b|\bparasitas?\b|\btrypanosoma\b|\bchagas\b|\bgiardia\b/gi }
+                ]
+            },
+            {
+                title: "Riscos Ergonômicos",
+                icon: "fa-chair",
+                headerColor: "bg-purple-600",
+                items: [
+                    { name: "Postura Inadequada", regex: /\bpostura inadequada\b|\bposicoes forcadas\b|\bcurvadas\b|\bsentadas\b/gi },
+                    { name: "Movimentos Repetitivos", regex: /\bmovimentos repetitivos\b|\bmesma acao varias vezes\b/gi },
+                    { name: "Esforço Físico Pesado", regex: /\besforco fisico pesado\b|\blevantar pesos?\b|\bcarregar( pesos?)?\b|\bempurrar pesos?\b/gi },
+                    { name: "Ritmo Excessivo", regex: /\britmo excessivo\b|\bcobrancas apertadas\b|\bmetas irreais\b/gi },
+                    { name: "Organização do Trabalho", regex: /\borganizacao do trabalho\b|\bjornadas longas\b|\bturnos noturnos\b/gi },
+                    { name: "Iluminação Deficiente", regex: /\biluminacao deficiente\b|\bluzes( muito)? fracas\b|\bluzes excessivas\b/gi },
+                    { name: "Monotonia", regex: /\bmonotonia\b/gi }
+                ]
+            },
+            {
+                title: "Riscos de Acidentes",
+                icon: "fa-triangle-exclamation",
+                headerColor: "bg-orange-600",
+                items: [
+                    { name: "Quedas", regex: /\bquedas?\b|\bdesniveis\b|\bpisos escorregadios\b|\bem altura sem protecao\b/gi },
+                    { name: "Eletricidade", regex: /\beletricidade\b|\bchoques eletricos\b|\bfios desencapados\b/gi },
+                    { name: "Máquinas e equipamentos", regex: /\bmaquinas e equipamentos\b|\bprotecoes em pontos\b|\bferramentas defeituosas\b/gi },
+                    { name: "Incêndios e explosões", regex: /\bincendios\b|\bexplosoes\b|\bprodutos inflamaveis\b|\bvazamentos de gas\b/gi },
+                    { name: "Arranjo físico deficiente", regex: /\barranjo fisico deficiente\b|\bcorredores obstruidos\b|\bempilhamento instavel\b/gi },
+                    { name: "Trânsito e circulação", regex: /\btransito e circulacao\b|\batropelamentos\b|\bcolisoes\b|\bempilhadeiras\b/gi }
+                ]
+            },
+            {
+                title: "Riscos Psicossociais",
+                icon: "fa-brain",
+                headerColor: "bg-rose-600",
+                items: [
+                    { name: "Sobrecarga de trabalho", regex: /\bsobrecarga de trabalho\b|\bmetas inatingiveis\b|\bvolume excessivo\b/gi },
+                    { name: "Falta de autonomia", regex: /\bfalta de autonomia\b|\bpouco controle\b|\bmicrogerenciamento\b/gi },
+                    { name: "Jornadas prolongadas", regex: /\bjornadas prolongadas\b|\bhoras excessivas\b/gi },
+                    { name: "Conflitos e assédio", regex: /\bconflitos interpessoais\b|\bassedio\b|\brelacoes hostis\b|\bdiscriminacao\b/gi },
+                    { name: "Falta de suporte", regex: /\bfalta de suporte\b|\bausencia de apoio\b/gi },
+                    { name: "Insegurança no emprego", regex: /\binseguranca no emprego\b|\bprecarizacao\b|\bmedo constante de demissao\b/gi },
+                    { name: "Má comunicação", regex: /\bma comunicacao\b|\bfalta de clareza\b|\bmetas contraditorias\b/gi }
+                ]
+            }
+        ];
+
+        
+        // Remove acentos e joga pra minúsculo
+        function normalizeText(text) {
+            return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        }
+
+        function checkRiskPresence(textNormalized, riskRegex) {
+            const matches = [...textNormalized.matchAll(riskRegex)];
+            
+            // Se não encontrou a palavra, já consideramos ausente
+            if (matches.length === 0) return false;
+
+            let isActuallyPresent = false;
+
+            // Se achou, verifica as proximidades (80 caracteres antes e depois)
+            for (const match of matches) {
+                const start = Math.max(0, match.index - 80);
+                const end = Math.min(textNormalized.length, match.index + match[0].length + 80);
+                const windowContext = textNormalized.substring(start, end);
+
+                // Se na janela de 160 caracteres totais não houver termo de negação
+                // Consideramos que o risco está presente de fato
+                if (!negationRegex.test(windowContext)) {
+                    isActuallyPresent = true;
+                    break;
+                }
+            }
+
+            return isActuallyPresent;
+        }
+
+        // Lida com o Upload de Arquivo
+        fileInput.addEventListener('change', async (e) => {
+            errorAlert.classList.add('hidden');
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const filename = file.name.toLowerCase();
+            filenameDisplay.textContent = file.name;
+            
+            // UI transitions
+            viewInitial.classList.add('hidden');
+            viewResults.classList.add('hidden');
+            viewLoading.classList.remove('hidden');
+            viewLoading.classList.add('flex');
+            
+            try {
+                let extractedText = "";
+
+                if (filename.endsWith('.pdf')) {
+                    loadingStatus.textContent = "Processando páginas do PDF...";
+                    extractedText = await parsePDF(file);
+                } else if (filename.endsWith('.docx')) {
+                    loadingStatus.textContent = "Processando estrutura do DOCX...";
+                    extractedText = await parseWord(file);
+                } else {
+                    throw new Error("Formato não suportado. Por favor, envie um PDF ou DOCX.");
+                }
+
+                loadingStatus.textContent = "Lendo janela de contexto e montando matriz de riscos...";
+                
+                // Simula um tempinho para o usuário ler o status e a UI respirar
+                setTimeout(() => {
+                    renderAnalysis(extractedText);
+                }, 500);
+
+            } catch (error) {
+                console.error(error);
+                errorMsg.textContent = error.message || "Erro desconhecido ao ler o arquivo.";
+                errorAlert.classList.remove('hidden');
+                
+                viewLoading.classList.add('hidden');
+                viewLoading.classList.remove('flex');
+                viewInitial.classList.remove('hidden');
+            }
+            
+            fileInput.value = ''; // Reseta o input
+        });
+
+        async function parsePDF(file) {
+            const buffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+            
+            let fullText = "";
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(" ");
+                fullText += pageText + " ";
+            }
+            
+            if (fullText.trim().length === 0) throw new Error("O PDF está vazio ou é composto apenas por imagens.");
+            return fullText;
+        }
+
+        async function parseWord(file) {
+            const buffer = await file.arrayBuffer();
+            const result = await mammoth.extractRawText({ arrayBuffer: buffer });
+            if (!result.value || result.value.trim().length === 0) throw new Error("Documento Word vazio ou ilegível.");
+            return result.value;
+        }
+
+        function renderAnalysis(rawText) {
+            const normalizedDocument = normalizeText(rawText);
+            resultsGrid.innerHTML = '';
+
+            riskData.forEach(category => {
+                let itemsHtml = '';
+
+                category.items.forEach(subRisk => {
+                    const isPresent = checkRiskPresence(normalizedDocument, subRisk.regex);
+                    
+                    // Configuração de Cores e Labels
+                    let badgeClass, iconClass, labelText, textStyle;
+
+                    if (isPresent) {
+                        badgeClass = "bg-green-100 text-green-700 border-green-200";
+                        iconClass = "fa-solid fa-check";
+                        labelText = "Presente";
+                        textStyle = "text-slate-800 font-semibold";
+                    } else {
+                        badgeClass = "bg-red-50 text-red-600 border-red-200";
+                        iconClass = "fa-solid fa-xmark";
+                        labelText = "Ausente";
+                        textStyle = "text-slate-500";
+                    }
+
+                    itemsHtml += `
+                        <li class="flex items-center justify-between py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors rounded px-2">
+                            <span class="text-sm ${textStyle} w-[65%] pr-2">${subRisk.name}</span>
+                            <div class="flex items-center justify-center gap-1.5 border ${badgeClass} px-2.5 py-1 rounded shadow-sm text-[11px] uppercase tracking-wider font-bold w-[95px]">
+                                <i class="${iconClass}"></i>
+                                <span>${labelText}</span>
+                            </div>
+                        </li>
+                    `;
+                });
+
+                const cardHtml = `
+                    <div class="bg-white rounded-xl shadow border border-slate-200 overflow-hidden flex flex-col h-full hover:shadow-md transition-shadow">
+                        <div class="${category.headerColor} text-white px-5 py-3.5 flex items-center gap-3">
+                            <i class="fa-solid ${category.icon} text-lg opacity-90"></i>
+                            <h4 class="font-bold text-base tracking-wide">${category.title}</h4>
+                        </div>
+                        <div class="p-3 flex-1 overflow-y-auto">
+                            <ul class="flex flex-col">
+                                ${itemsHtml}
+                            </ul>
+                        </div>
+                    </div>
+                `;
+
+                resultsGrid.insertAdjacentHTML('beforeend', cardHtml);
+            });
+
+            // Oculta loading, Mostra Grid
+            viewLoading.classList.add('hidden');
+            viewLoading.classList.remove('flex');
+            viewResults.classList.remove('hidden');
+            viewResults.classList.add('flex');
+        }
+    </script>
+</body>
+</html>
